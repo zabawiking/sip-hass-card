@@ -521,7 +521,7 @@ class SipJsCard extends LitElement {
     }
 
     static async getConfigElement() {
-        return document.createElement("sipjs-card-editor");
+        return document.createElement("sipjs-card-doorbell-editor");
     }
 
     static getStubConfig() {
