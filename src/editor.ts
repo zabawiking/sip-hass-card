@@ -5,7 +5,7 @@ import {
 } from "lit";
 import { customElement } from 'lit/decorators.js';
 
-@customElement('sipjs-card-editor')
+@customElement('sipjs-card-doorbell-editor')
 class SipJsCardEditor extends LitElement {
     _config: any;
     hass: any;
