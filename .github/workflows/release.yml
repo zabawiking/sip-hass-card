@@ -20,7 +20,7 @@ jobs:
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: /home/runner/work/sip-hass-card/sip-hass-card/dist/sipjs-card.js
-          asset_name: sipjs-card.js
+          file: /home/runner/work/sip-hass-card/sip-hass-card/dist/sipjs-card-dorbell.js
+          asset_name: sipjs-card-dorbell.js
           tag: ${{ github.ref }}
           overwrite: true
