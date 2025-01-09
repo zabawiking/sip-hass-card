@@ -13,7 +13,7 @@ import { customElement } from "lit/decorators.js";
 import "./audioVisualizer";
 import { AudioVisualizer } from "./audioVisualizer";
 
-@customElement('sipjs-card')
+@customElement('sipjs-card-doorbell')
 class SipJsCard extends LitElement {
     sipPhone: UA | undefined;
     sipPhoneSession: RTCSession | null;
@@ -967,8 +967,8 @@ class SipJsCard extends LitElement {
 
 (window as any).customCards = (window as any).customCards || [];
 (window as any).customCards.push({
-    type: "sipjs-card",
-    name: "SIP Card",
+    type: "sipjs-card-doorbell",
+    name: "SIP Card Doorbell",
     preview: false,
-    description: "A SIP card, made by Jordy Kuhne."
+    description: "A SIP doorbell card, made by Jordy Kuhne, modified by JZ."
 });
