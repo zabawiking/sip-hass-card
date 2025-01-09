@@ -1,5 +1,5 @@
 {
-    "name": "SIP Card",
-    "filename": "sipjs-card.js",
+    "name": "SIP Card Doorbell",
+    "filename": "sipjs-card-doorbell.js",
     "render_readme": true
   }

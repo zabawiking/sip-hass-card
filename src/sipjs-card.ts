@@ -28,7 +28,7 @@ class SipJsCard extends LitElement {
     intervalId!: number;
     error: any = null;
     audioVisualizer: any;
-    callStatus: string = "Idle";
+    callStatus: string = "Idle1";
     user_extension: string = "None";
     card_title: string = "Unknown";
     connected: boolean = false;
