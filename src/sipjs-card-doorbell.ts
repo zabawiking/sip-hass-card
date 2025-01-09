@@ -14,7 +14,7 @@ import "./audioVisualizer";
 import { AudioVisualizer } from "./audioVisualizer";
 
 @customElement('sipjs-card-doorbell')
-class SipJsCard extends LitElement {
+class SipJsCardDoorBell extends LitElement {
     sipPhone: UA | undefined;
     sipPhoneSession: RTCSession | null;
     sipCallOptions: any;
