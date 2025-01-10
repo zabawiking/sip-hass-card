@@ -54,22 +54,6 @@ export class SipDoorbellJsStyles {
                 height: 100%;
                 width: 100%;
             }
-            .visualizer-container {
-                position: absolute;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                top: 0;
-                display: flex;
-                align-items: center;
-            }
-            .visualizer-bar {
-                display: inline-block;
-                background: white;
-                margin: 0 2px;
-                width: 25px;
-                min-height: 5px;
-            }
             .box {
                 /* start paper-font-common-nowrap style */
                 white-space: nowrap;
@@ -88,7 +72,7 @@ export class SipDoorbellJsStyles {
                 color: var(--ha-picture-card-text-color, white);
                 display: flex;
                 justify-content: space-between;
-                flex-direction: row;
+                flex-direction: column;
                 /*margin-top: -70px;*/
                 min-height: 62px;
             }
@@ -98,7 +82,7 @@ export class SipDoorbellJsStyles {
             }
             .row {
                 display: flex;
-                flex-direction: row;
+                flex-direction: column;
             }
             .container {
                 transition: filter 0.2s linear 0s;

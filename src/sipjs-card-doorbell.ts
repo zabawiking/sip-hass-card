@@ -74,7 +74,7 @@ class SipJsCardDoorBell extends LitElement {
                         <span slot="actionItems" id="time" class="header-text">${this.timerElement}</span>
                     </ha-header-bar>
                 </div>
-                <div class="content"> 
+                <div class="content" style="flex-flow: row;"> 
                     ${this.config.doorbell_camera !== undefined ? html`
                         <ha-camera-stream
                             allow-exoplayer
