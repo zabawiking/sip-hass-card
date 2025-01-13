@@ -1,7 +1,3 @@
-import { UA, WebSocketInterface } from "jssip/lib/JsSIP";
-import { RTCSessionEvent } from "jssip/lib/UA";
-import { EndEvent, PeerConnectionEvent, IncomingEvent, OutgoingEvent, IceCandidateEvent, RTCSession } from "jssip/lib/RTCSession";
-
 import {
   LitElement,
   css,
@@ -13,35 +9,28 @@ import "./audioVisualizer";
 import { AudioVisualizer } from "./audioVisualizer";
 import { SipDoorbellJsStyles } from "./styles";
 import { SipDoorbellJsConfig } from "./config";
+import { Phone, PhoneStatus, SipStatus } from "./phone";
 
-@customElement('sipjs-card-doorbell')
-class SipJsCardDoorBell extends LitElement {
-    sipPhone: UA | undefined;
-    sipPhoneSession: RTCSession | null;
-    sipCallOptions: any;
+@customElement('sipjs-doorbell-controller-card')
+class SipJsDoorbellControllerCard extends LitElement {
+    sipPhone: Phone | null;
     config: SipDoorbellJsConfig = new SipDoorbellJsConfig();
     hass: any;
-    timerElement: string = "00:00";
     renderRoot: any;
-    intervalId!: number;
-    error: any = null;
     audioVisualizer: any;
-    callStatus: string = "Unknown";
-    connected: boolean = false;
+
+    phoneStatus: PhoneStatus = { sipStatus: SipStatus.Disconnected, statusMessage: "Disconnected" };
+    progress = "00:00";
 
     constructor() {
-        super();
-        this.sipPhoneSession = null;
+      super();
+      this.sipPhone = null;
     }
 
     static get properties() {
         return {
             hass: {},
             config: {},
-            popup: {
-                type: Boolean
-            },
-            timerElement: {},
             currentCamera: {}
         };
     }
@@ -60,18 +49,18 @@ class SipJsCardDoorBell extends LitElement {
         }
 
         return html`
-            <audio id="toneAudio" style="display:none" loop controls></audio>
             <audio id="remoteAudio" style="display:none"></audio>
                 <style>
                     ha-icon-button {
                         --mdc-icon-button-size: ${this.config.button_size ? unsafeCSS(this.config.button_size) : css`48`}px;
                         --mdc-icon-size: ${this.config.button_size ? unsafeCSS(this.config.button_size - 25) : css`23`}px;
                     }
+
                 </style>
                 <div slot="heading" class="heading">
                     <ha-header-bar>
-                        <span slot="title" id="name" class="header-text">${this.callStatus}</span>
-                        <span slot="actionItems" id="time" class="header-text">${this.timerElement}</span>
+                        <span slot="title" id="name" class="header-text">${this.phoneStatus.statusMessage}</span>
+                        <span slot="actionItems" id="time" class="header-text">${this.progress}</span>
                     </ha-header-bar>
                 </div>
                 <div class="content" style="flex-flow: row;"> 
@@ -85,7 +74,7 @@ class SipJsCardDoorBell extends LitElement {
                     ` : html`<audio id="remoteAudio" style="display:none"></audio>`}
                     <div class="box">
                         <div class="row">
-                            ${this.connected ?
+                            ${this.phoneStatus.sipStatus != SipStatus.Disconnected ?
                               html `<ha-icon-button
                                   class="accept-btn"
                                   .label=${"Accept Call"}
@@ -95,7 +84,7 @@ class SipJsCardDoorBell extends LitElement {
                             }
                         </div>
                         <div class="row">
-                            ${this.sipPhoneSession != null ?
+                            ${this.phoneStatus.sipStatus == SipStatus.OnCall ?
                                 html `<ha-icon-button
                                     .label=${"Mute audio"}
                                     @click="${this._toggleMuteAudio}"
@@ -104,17 +93,6 @@ class SipJsCardDoorBell extends LitElement {
                             }
                         </div>
                         <div class="row">
-                            ${this.config.dtmfs ?
-                                this.config.dtmfs.map((dtmf: { signal: any; name: any; icon: any; }) => {
-                                    return html `
-                                        <ha-icon-button
-                                            @click="${() => this._sendDTMF(dtmf.signal)}"
-                                            .label="${dtmf.name}"
-                                            ><ha-icon icon="${dtmf.icon}"></ha-icon>
-                                        </ha-icon-button>
-                                    `;
-                                }) : ""
-                            }
                             ${this.config.buttons ?
                                 this.config.buttons.map((button: { entity: any; name: any; icon: any; }) => {
                                     return html `
@@ -128,7 +106,7 @@ class SipJsCardDoorBell extends LitElement {
                             }
                         </div>
                         <div class="row">
-                            ${this.sipPhoneSession != null ?
+                            ${this.phoneStatus.sipStatus == SipStatus.OnCall || this.phoneStatus.sipStatus == SipStatus.IncomingCall ?
                               html `<ha-icon-button
                                   class="hangup-btn"
                                   .label=${"Decline Call"}
@@ -148,7 +126,6 @@ class SipJsCardDoorBell extends LitElement {
     }
 
     firstUpdated() {
-      console.log('UUUUUUUUUUUUUUUUUUUUU', this.sipPhone);
       console.log('UUUUUUUUUUUUUUUUUUUUU', this.hass.user) 
       console.log('HHHHHHHHHHHHHHHHHHHHH', this.hass.states);
       console.log('GGGGGGGGGGGGGGGGGGGGG', this.hass);
@@ -181,26 +158,121 @@ class SipJsCardDoorBell extends LitElement {
         return 1;
     }
 
-    private ring(tone: string) {
-      try {
-        var toneAudio = this.renderRoot.querySelector('#toneAudio');
-        if (tone) {
-            toneAudio.src = tone;
-            toneAudio.currentTime = 0;
-            toneAudio.play();
-        } else {
-            toneAudio.pause();
-        }
+    async connect() {
+      this.requestUpdate();
+
+      console.log("PHONE", this.hass.services['sip-doorbell']);
+
+      if (this.hass.services['sip-doorbell'] == undefined) {
+        let phone = new Phone(this.config.server, this.config.port, this.config.prefix, this.config.person.ext, this.config.secret, this.config.doorbell_ext, this.config.auto_answer);
+        this.hass.services['sip-doorbell'] = phone;
+      } else {
+        console.log(`Already connected from other card`);
       }
-      catch {        
+
+      this.sipPhone = this.hass.services['sip-doorbell'];
+
+      this.sipPhone?.onStatus.subscribe(s => {
+        this.phoneStatus = s;
+        super.requestUpdate();
+      });
+
+      this.sipPhone?.onMedia.subscribe(async stream => {
+        let remoteAudio = this.renderRoot.querySelector("#remoteAudio");
+        if (stream == null) {
+          await remoteAudio.pause();
+          remoteAudio.srcObject = null;
+        }
+        else if (remoteAudio.srcObject != stream) {
+          remoteAudio.srcObject = stream;
+          try {
+            await remoteAudio.play();
+          }
+          catch (err) {
+            console.log('Error starting audio playback: ' + err);
+          }
+        }
+      })
+
+      this.sipPhone?.onProgress.subscribe(progress => {
+        this.progress = progress;
+        super.requestUpdate();
+      });
+
+      this.sipPhone?.connect();
+    }
+
+    async _answer() {
+      if (this.sipPhone?.status.sipStatus == SipStatus.Idle) {
+        await this.sipPhone?.Call();
+      } else {
+        await this.sipPhone?.Answer();
       }
     }
 
-    async _call(extension: string | null) {
-        this.ring(this.config.ringtones.ringbacktone);
+    async _hangup() {
+      await this.sipPhone?.Terminate();
+    }
+
+    async _toggleMuteAudio() {
+      if (this.sipPhone?.isMuted) {
+          this.sipPhone?.Mute(false);
+          this.renderRoot.querySelector('#muteaudio-icon').icon = "hass:microphone";
+      }
+      else {
+          this.sipPhone?.Mute(true);
+          this.renderRoot.querySelector('#muteaudio-icon').icon = "hass:microphone-off";
+      }
+    }
+
+    async _button(entity: string) {
+      const domain = entity.split(".")[0];
+      let service;
+      console.log(domain);
+
+      switch(domain) {
+          case "script":
+              service = "turn_on";
+              break;
+          case "button":
+              service = "press";
+              break;
+          case "scene":
+              service = "turn_on";
+              break;
+          case "light":
+              service = "toggle";
+              break;
+          case "switch":
+              service = "toggle";
+              break;
+          case "cover":
+                service = "toggle";
+                break;                
+          case "input_boolean":
+              service = "toggle";
+              break;
+          default:
+              console.log("No supported service");
+              return;
+      }
+      console.log(service);
+
+      await this.hass.callService(domain, service, {
+          entity_id: entity
+      });
+    }
+
+
+    /*async _call(extension: string | null) {
+        //this.ring(this.config.ringtones.ringbacktone);
         this.callStatus = "Calling...";
+        let sipCallOptions = {
+          mediaConstraints: { audio: true, video: false },
+          rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false },
+        }; 
         if (this.sipPhone) {
-            this.sipPhone.call("sip:" + extension + "@" + this.config.server, this.sipCallOptions);
+            this.sipPhone.call("sip:" + extension + "@" + this.config.server, sipCallOptions);
         }
     }
 
@@ -220,62 +292,15 @@ class SipJsCardDoorBell extends LitElement {
       }
     }
 
-    async _hangup() {
-        this.sipPhoneSession?.terminate();
-    }
+    
 
-    async _toggleMuteAudio() {
-        if (this.sipPhoneSession?.isMuted().audio) {
-            this.sipPhoneSession?.unmute({ video: false, audio: true });
-            this.renderRoot.querySelector('#muteaudio-icon').icon = "hass:microphone";
-        }
-        else {
-            this.sipPhoneSession?.mute({ video: false, audio: true });
-            this.renderRoot.querySelector('#muteaudio-icon').icon = "hass:microphone-off";
-        }
-    }
+   
 
     async _sendDTMF(signal: any) {
         this.sipPhoneSession?.sendDTMF(signal);
     }
 
-    async _button(entity: string) {
-        const domain = entity.split(".")[0];
-        let service;
-        console.log(domain);
-
-        switch(domain) {
-            case "script":
-                service = "turn_on";
-                break;
-            case "button":
-                service = "press";
-                break;
-            case "scene":
-                service = "turn_on";
-                break;
-            case "light":
-                service = "toggle";
-                break;
-            case "switch":
-                service = "toggle";
-                break;
-            case "cover":
-                  service = "toggle";
-                  break;                
-            case "input_boolean":
-                service = "toggle";
-                break;
-            default:
-                console.log("No supported service");
-                return;
-        }
-        console.log(service);
-
-        await this.hass.callService(domain, service, {
-            entity_id: entity
-        });
-    }
+    
 
     endCall() {
         if (this.config.doorbell_camera == undefined && this.audioVisualizer !== undefined) {
@@ -283,7 +308,6 @@ class SipJsCardDoorBell extends LitElement {
             this.renderRoot.querySelector('#audioVisualizer').innerHTML = '';
             this.audioVisualizer = undefined;
         }
-        this.ring(this.config.ringtones.pause);
         this.callStatus = "Idle";
         clearInterval(this.intervalId);
         this.timerElement = "00:00";
@@ -294,49 +318,34 @@ class SipJsCardDoorBell extends LitElement {
         this.timerElement = "00:00";
         this.requestUpdate();
 
-        let addr = `wss://${this.config.server}:${this.config.port}${this.config.prefix}/ws`;
-        console.log(`Connecting to ${addr}`);
-        var socket = new WebSocketInterface(addr);
+        
 
-        var configuration = {
-            sockets : [ socket ],
-            uri     : "sip:" + this.config.person.ext + "@" + this.config.server,
-            authorization_user: this.config.person.ext,
-            password: this.config.secret,
-            register: true
-        };
+        if (this.hass.services['sip-doorbell'] == undefined) {
+          // let addr = `wss://${this.config.server}:${this.config.port}${this.config.prefix}/ws`;
+          // console.log(`Connecting to ${addr}`);
+          // var socket = new WebSocketInterface(addr);
 
-        // if (this.hass.services['sip-doorbell'] == undefined) {
-        //   this.hass.services['sip-doorbell'] = new UA(configuration);
-        // }
+          // var configuration = {
+          //     sockets : [ socket ],
+          //     uri     : "sip:" + this.config.person.ext + "@" + this.config.server,
+          //     authorization_user: this.config.person.ext,
+          //     password: this.config.secret,
+          //     register: true
+          // };
 
-        this.sipPhone = new UA(configuration);
+          // this.hass.services['sip-doorbell'] = new UA(configuration);
+          // this.hass.services['sip-doorbell'].start();
+          console.log(`You need to add add 'sipjs-doorbell-client-card' card to register phone`);
+        } else {
+          console.log(`Connected from 'sipjs-doorbell-client-card'`);
+        }
 
-        this.sipCallOptions = {
-            mediaConstraints: { audio: true, video: false },
-            rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false },
-            pcConfig: this.config.iceConfig // we just use the config that directly comes from the YAML config in the YAML card config.
-            /* EXAMPLE config
-            {
-                iceCandidatePoolSize: 0,   //  prefetched ICE candidate pool. The default value is 0 (meaning no candidate prefetching will occur).
-                iceTransportPolicy: 'all', // 'relay' is also allowed, i.e. only candidates from TURN-servers
-                iceServers: [
-                    {
-                        // Google STUN servers
-                        urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
-                        //credentialType: 'password',
-                        //username: 'myusername',
-                        //credential: 'mypassword'
-                    }
-                ],
-                rtcpMuxPolicy: 'require' // RTP and RTCP will be muxed
-            }
-            */
-        };
-
-        console.log('ICE config: ' + JSON.stringify(this.sipCallOptions.pcConfig, null, 2));
-
-        this.sipPhone?.start();
+        this.sipPhone = this.hass.services['sip-doorbell'];
+        
+        if (this.sipPhone?.isRegistered() ?? false) {
+          this.connected = true;
+          this.callStatus = "Idle";
+        }
 
         this.sipPhone?.on("registered", () => {
             console.log('SIP-Card Registered with SIP Server');
@@ -409,7 +418,6 @@ class SipJsCardDoorBell extends LitElement {
                     let remoteAudio = this.renderRoot.querySelector("#remoteAudio");
                     this.audioVisualizer = new AudioVisualizer(this.renderRoot, remoteAudio.srcObject, 16);
                 }
-                this.ring(this.config.ringtones.pause);
                 if (this.sipPhoneSession?.remote_identity && this.sipPhoneSession?.remote_identity?.display_name) {
                   this.callStatus = this.sipPhoneSession?.remote_identity.display_name;
                 } else {
@@ -424,41 +432,6 @@ class SipJsCardDoorBell extends LitElement {
                     this.timerElement = (minutes + ":" + Math.round(seconds)).split(':').map(e => `0${e}`.slice(-2)).join(':');
                 }.bind(this), 1000);
             });
-
-            var iceCandidateTimeout: NodeJS.Timeout | null = null;
-            var iceTimeout = 5;
-            if (this.config.iceTimeout !== null && this.config.iceTimeout !== undefined)
-            {
-                iceTimeout = this.config.iceTimeout;
-            }
-
-            console.log('ICE gathering timeout: ' + iceTimeout + " seconds");
-
-            this.sipPhoneSession.on("icecandidate", (event: IceCandidateEvent) => {
-                console.log('ICE: candidate: ' + event.candidate.candidate);
-
-                if (iceCandidateTimeout != null) {
-                    clearTimeout(iceCandidateTimeout);
-                }
-
-                iceCandidateTimeout = setTimeout(() => {
-                    console.log('ICE: stop candidate gathering due to application timeout.');
-                    event.ready();
-                }, iceTimeout * 1000);
-            });
-
-            let handleIceGatheringStateChangeEvent = (event: any): void => {
-                let connection = event.target;
-
-                console.log('ICE: gathering state changed: ' + connection.iceGatheringState);
-
-                if (connection.iceGatheringState === 'complete') {
-                    console.log('ICE: candidate gathering complete. Cancelling ICE application timeout timer...');
-                    if (iceCandidateTimeout != null) {
-                        clearTimeout(iceCandidateTimeout);
-                    }
-                }
-            };
 
             let handleRemoteTrackEvent = async (event: RTCTrackEvent): Promise<void> => {
                 console.log('Call: peerconnection: mediatrack event: kind: ' + event.track.kind);
@@ -508,15 +481,16 @@ class SipJsCardDoorBell extends LitElement {
                     console.log('Call: peerconnection(incoming)');
 
                     event.peerconnection.addEventListener("track", handleRemoteTrackEvent);
-                    event.peerconnection.addEventListener("icegatheringstatechange", handleIceGatheringStateChangeEvent);
                 });
 
                 if (this.config.auto_answer) {
-                    this.sipPhoneSession.answer(this.sipCallOptions);
-                    return;
+                  let sipCallOptions = {
+                    mediaConstraints: { audio: true, video: false },
+                    rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false },
+                  }; 
+                  this.sipPhoneSession.answer(sipCallOptions);
+                  return;
                 }
-
-                this.ring(this.config.ringtones.ringtone);
 
                 if (this.sipPhoneSession.remote_identity) {
                   this.callStatus = "Incoming Call From " + this.sipPhoneSession.remote_identity.display_name;
@@ -537,7 +511,6 @@ class SipJsCardDoorBell extends LitElement {
                 }
 
                 this.sipPhoneSession.connection.addEventListener("track", handleRemoteTrackEvent);
-                this.sipPhoneSession.connection.addEventListener("icegatheringstatechange", handleIceGatheringStateChangeEvent);
             }
             else {
                 console.log('Call: direction was neither incoming or outgoing!');
@@ -549,13 +522,13 @@ class SipJsCardDoorBell extends LitElement {
         if (extension) {
             this._call(extension);
         }
-    }
+    }*/
 }
 
 (window as any).customCards = (window as any).customCards || [];
 (window as any).customCards.push({
-    type: "sipjs-card-doorbell",
-    name: "SIP Card Doorbell",
+    type: "sipjs-doorbell-controller-card",
+    name: "SIP Doorbell Controller Card",
     preview: false,
-    description: "A SIP doorbell card, made by Jordy Kuhne, modified by JZ."
+    description: "A SIP doorbell controller card"
 });

@@ -5,13 +5,9 @@ export class SipDoorbellJsConfig {
   secret = "";
 
   button_size = 48;
-  dtmfs: any = [];
   buttons: any = [];
   
   auto_answer = false;
-
-  iceConfig: any = {}
-  iceTimeout = 5;
 
   doorbell_ext = "";
   doorbell_camera = undefined;
@@ -22,8 +18,6 @@ export class SipDoorbellJsConfig {
   }
 
   ringtones = {
-    ringtone: "",
-    ringbacktone: "",
-    pause: ""
+    ringtone: ""
   }
 }

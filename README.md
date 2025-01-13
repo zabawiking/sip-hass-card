@@ -25,22 +25,19 @@ Download using **HACS**
  6. You should now see SIP.js Client. Click `INSTALL`
 
 ## Usage
-Click on add card and scroll down to and choose `Custom: SIP Card Doorbell`.
+Click on add card and scroll down to and choose `Custom: SIP Doorbell Card`.
 The entire card is configurable from the editor.
 
 ### Set Ringtones
 set your ringtones to play when calling/being called.
 `/local` is your `www` folder in config. Example: `/local/ringtone.mp3` = `/config/www/ringtone.mp3`.
 
-### Auto Call
-You can put `?call=<number>` behind the URL to auto call that number when the card loads. Useful for notifications.
-
 ### Card Configuration
 
 Example:
 
 ```
-type: custom:sipjs-card-doorbell
+type: custom:sipjs-doorbell-client-card OR sipjs-doorbell-controller-card
 server: 192.168.10.1 //!!need to have valid SSL certificate!!
 port: "8089"
 prefix: ""
@@ -59,18 +56,7 @@ buttons:
     icon: mdi:door
   - entity: cover.gate
     icon: mdi:gate
-iceConfig: # Remove if you don't want to use ICE
-  iceCandidatePoolSize: 0
-  iceTransportPolicy: all
-  iceServers:
-    - urls:
-        - stun:stun.l.google.com:19302
-        - stun:stun1.l.google.com:19302
-  rtcpMuxPolicy: require
 ```
-
-## Wiki
-You can find more information on the [SIP-HASS Docs](https://tech7fox.github.io/sip-hass-docs/).
 
 ## Troubleshooting
 Most problems is because your PBX server is not configured correct, or your certificate is not accepted.
